@@ -184,6 +184,45 @@ const CAFE_BANAPRESSO = {
   ],
 };
 
+
+const CAFE_BROWNBENCH = {
+  id: "c3", name: "브라운벤치",
+  options: [
+    { name: "샷추가", delta: 500 }, { name: "시럽추가", delta: 500 },
+    { name: "세트 음료 라떼/카푸치노 변경", delta: 1000 },
+    { name: "연하게", delta: 0 }, { name: "얼음 적게", delta: 0 },
+  ],
+  menus: [
+    M("모닝세트 (AM7~10)", "세트A 머핀세트 (블루베리/초코 + 아메리카노)", 4000, "both"),
+    M("모닝세트 (AM7~10)", "세트B 프레즐세트 (프레즐 + 아메리카노)", 4000, "both"),
+    M("모닝세트 (AM7~10)", "세트C 베이글세트 (플레인/블루베리/어니언 + 아메리카노)", 4000, "both"),
+    M("커피", "에스프레소", 2800, "hot"),
+    M("커피", "에스프레소 도피오", 3300, "hot"),
+    M("커피", "아메리카노", 2800, "both"),
+    M("커피", "아메리카노 (大)", 3300, "both"),
+    M("커피", "카푸치노", 3300, "both"),
+    M("커피", "카페라떼", 3300, "both"),
+    M("커피", "카페라떼 (大)", 3800, "both"),
+    M("커피", "바닐라라떼", 4300, "both"),
+    M("커피", "헤이즐넛라떼", 4300, "both"),
+    M("커피", "토피넛라떼", 4300, "both"),
+    M("커피", "카페모카", 4600, "both"),
+    M("커피", "얼그레이라떼", 4800, "both"),
+    M("커피", "카라멜마끼아또", 4800, "both"),
+    M("허브티", "잉글리쉬 블랙퍼스트", 3500, "both"),
+    M("허브티", "얼그레이", 3500, "both"),
+    M("허브티", "페퍼민트", 3500, "both"),
+    M("허브티", "캐모마일", 3500, "both"),
+    M("허브티", "텐지레몬 (레몬스카이)", 3500, "both"),
+    M("허브티", "오베리 (레드베리)", 4000, "both"),
+    M("허브티", "자몽향", 4000, "both"),
+    M("에이드", "레몬에이드", 4800, "ice"),
+    M("에이드", "자몽에이드", 4800, "ice"),
+    M("에이드", "깔라만시에이드", 4800, "ice"),
+    M("에이드", "패션후르츠에이드", 4800, "ice"),
+  ],
+};
+
 /* ── 7월 주문 (스프레드시트 기록) ─────────────────────── */
 const SEED_JULY_ORDERS = [
   ["m0", "아이스 카페라떼", [], 3000],
@@ -203,7 +242,7 @@ const SEED_JULY_ORDERS = [
 
 const STORAGE_KEY = "birthday-coffee-data-v2";
 const seedData = () => ({
-  cafes: [CAFE_JJADRA, CAFE_ITSCRISPY, CAFE_BANAPRESSO],
+  cafes: [CAFE_JJADRA, CAFE_ITSCRISPY, CAFE_BANAPRESSO, CAFE_BROWNBENCH],
   members: SEED_MEMBERS,
   sessions: { "2026-07": { rounds: [{ id: "r1", cafeId: "c0", orders: SEED_JULY_ORDERS }] } },
   settings: { memberSort: "name", leaveSeeded: true },
@@ -237,6 +276,10 @@ const sortMembers = (members, mode) => {
 
 /* ▼▼▼ 아래 따옴표 안에 Apps Script 웹 앱 URL(…/exec)을 붙여넣으세요 ▼▼▼ */
 const API_URL = "https://script.google.com/macros/s/AKfycbxRclOVJEtOtlhy3EueOHx5Y7UxJmTBrEprNQVddaxojZuUTX4Is3y2ym3yXm-_XazuYg/exec";
+
+/* ▼ 관리자 비밀번호 — 원하는 번호로 바꾸세요 ▼ */
+const ADMIN_PIN = "2580";
+const ADMIN_TABS = ["cafes", "members"];
 
 async function apiLoadRemote() {
   const res = await fetch(API_URL + "?action=load");
@@ -280,6 +323,10 @@ async function loadData() {
         }
         d.settings.julyFix1 = true;
       }
+      if (!d.settings.brownBench1) {
+        if (!d.cafes.some((c) => c.name === "브라운벤치")) d.cafes.push(CAFE_BROWNBENCH);
+        d.settings.brownBench1 = true;
+      }
       return d;
     }
   } catch (e) { /* 첫 실행 */ }
@@ -297,6 +344,8 @@ function BirthdayCoffeeKiosk() {
   const [month, setMonth] = useState(monthKey(new Date()));
   const [roundIdx, setRoundIdx] = useState(0);
   const [cardOpen, setCardOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pinAsk, setPinAsk] = useState(null); // 잠긴 탭 이동 요청
   const [saveState, setSaveState] = useState("idle");
 
   useEffect(() => { loadData().then(setData); }, []);
@@ -365,6 +414,12 @@ function BirthdayCoffeeKiosk() {
           <span className={"save-dot " + saveState}>
             {saveState === "error" ? "저장 실패" : saveState === "saving" ? "저장 중" : "저장됨"}
           </span>
+          {isAdmin && (
+            <button className="admin-chip" onClick={() => {
+              setIsAdmin(false);
+              if (ADMIN_TABS.includes(tab)) setTab("order");
+            }}>👤 관리자 모드 · 잠그기</button>
+          )}
         </div>
         <div className="month-nav">
           <button className="mbtn" onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
@@ -400,8 +455,9 @@ function BirthdayCoffeeKiosk() {
         )}
         <nav className="tabs">
           {[["order", "주문하기"], ["summary", "집계"], ["cafes", "카페 관리"], ["members", "팀원 관리"]].map(([k, label]) => (
-            <button key={k} className={"tab" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>
-              {label}
+            <button key={k} className={"tab" + (tab === k ? " on" : "")}
+              onClick={() => { if (ADMIN_TABS.includes(k) && !isAdmin) setPinAsk(k); else setTab(k); }}>
+              {label}{ADMIN_TABS.includes(k) && !isAdmin ? " 🔒" : ""}
               {k === "summary" && round.orders.length > 0 && <span className="badge">{round.orders.length}</span>}
             </button>
           ))}
@@ -419,13 +475,46 @@ function BirthdayCoffeeKiosk() {
         />
       )}
 
+      {pinAsk && (
+        <PinModal
+          onOk={() => { setIsAdmin(true); setTab(pinAsk); setPinAsk(null); }}
+          onClose={() => setPinAsk(null)}
+        />
+      )}
+
       {tab === "order" && <OrderView data={data} month={month} round={round} roundIdx={safeIdx} updateRound={updateRound} />}
-      {tab === "summary" && <SummaryView data={data} month={month} rounds={rounds} roundIdx={safeIdx} updateRound={updateRound} />}
+      {tab === "summary" && <SummaryView data={data} month={month} rounds={rounds} roundIdx={safeIdx} updateRound={updateRound} isAdmin={isAdmin} />}
       {tab === "cafes" && (
         <CafeView data={data} month={month} rounds={rounds} roundIdx={safeIdx} setRoundIdx={setRoundIdx}
           addRound={addRound} removeRound={removeRound} updateRound={updateRound} update={update} />
       )}
       {tab === "members" && <MemberView data={data} update={update} />}
+    </div>
+  );
+}
+
+/* ── 관리자 비밀번호 모달 ─────────────────────────────── */
+function PinModal({ onOk, onClose }) {
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState(false);
+  const submit = () => {
+    if (pin === ADMIN_PIN) onOk();
+    else { setErr(true); setPin(""); }
+  };
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal pin-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title">🔒 관리자 확인</div>
+        <div className="hint" style={{ marginTop: 4 }}>관리자 비밀번호를 입력하세요.</div>
+        <input className="pin-input" type="password" inputMode="numeric" autoFocus
+          value={pin} onChange={(e) => { setPin(e.target.value); setErr(false); }}
+          onKeyDown={(e) => e.key === "Enter" && submit()} />
+        {err && <div className="pin-err">비밀번호가 다릅니다.</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button className="primary" onClick={submit}>확인</button>
+          <button className="chip" onClick={onClose}>취소</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -672,7 +761,7 @@ function OrderView({ data, month, round, roundIdx, updateRound }) {
 }
 
 /* ── 집계 ─────────────────────────────────────────────── */
-function SummaryView({ data, month, rounds, roundIdx, updateRound }) {
+function SummaryView({ data, month, rounds, roundIdx, updateRound, isAdmin }) {
   const [copied, setCopied] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
   const round = rounds[roundIdx];
@@ -743,14 +832,14 @@ function SummaryView({ data, month, rounds, roundIdx, updateRound }) {
                       {g.who.map((w, wi) => (
                         <span key={w.id + wi} className="who-item">
                           {w.name}
-                          {confirmDel === w.id ? (
+                          {isAdmin && (confirmDel === w.id ? (
                             <>
                               <button className="link-btn danger" onClick={() => removeOrder(w.id)}>삭제</button>
                               <button className="link-btn" onClick={() => setConfirmDel(null)}>취소</button>
                             </>
                           ) : (
                             <button className="who-x" title="이 주문 삭제" onClick={() => setConfirmDel(w.id)}>×</button>
-                          )}
+                          ))}
                         </span>
                       ))}
                     </td>
@@ -1284,6 +1373,14 @@ h1 { font-size:22px; font-weight:900; margin:0; letter-spacing:-0.5px; }
 .bcard-x { border:none; background:none; color:rgba(25,23,20,.35); cursor:pointer;
   font-size:14px; padding:0 2px; margin-left:auto; }
 .bcard-x:hover { color:var(--hot); }
+.admin-chip { border:1.5px solid var(--gold); background:#FFF7DE; color:#B07E00;
+  border-radius:999px; padding:4px 12px; font-size:11.5px; font-weight:900;
+  cursor:pointer; font-family:inherit; margin-left:auto; }
+.pin-modal { max-width:360px; }
+.pin-input { width:100%; border:1.5px solid var(--line); border-radius:12px;
+  padding:12px 14px; font-size:18px; letter-spacing:6px; text-align:center;
+  font-family:inherit; margin-top:12px; }
+.pin-err { color:var(--hot); font-size:12.5px; font-weight:700; margin-top:8px; }
 .chip.leave { color:var(--sub); background:var(--bg); border-style:dashed; cursor:default; }
 .chip.absent { color:var(--sub); background:var(--bg); border-style:dashed; text-decoration:line-through; }
 .chip.absent.on { background:var(--act); color:#fff; text-decoration:line-through; }
